@@ -1,13 +1,14 @@
 import express from 'express';
+import authRoutes from './routes/authRoutes';
 
 const app = express();
 
-// Middlewares
 app.use(express.json());
 
-// Routes
 app.get('/', (req, res) => {
   res.send('Art Marketplace API');
 });
+
+app.use('/api/auth', authRoutes);
 
 export default app;
