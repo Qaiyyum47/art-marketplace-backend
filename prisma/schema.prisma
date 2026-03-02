@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  BUYER
+  ARTIST
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  firstName     String
+  lastName      String
+  role          UserRole  @default(BUYER)
+  bio           String?
+  profileImage  String?
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  artworks      Artwork[]
+  orders        Order[]
+  favorites     Favorite[]
+  cart          CartItem[]
+
+  @@map("users")
+}
+
+model Artwork {
+  id            String    @id @default(uuid())
+  title         String
+  description   String
+  price         Float
+  imageUrl      String
+  imagePublicId String?
+  category      String
+  dimensions    String?
+  medium        String?
+  yearCreated   Int?
+  isAvailable   Boolean   @default(true)
+  isFeatured    Boolean   @default(false)
+  views         Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  artistId      String
+  artist        User      @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  orderItems    OrderItem[]
+  favorites     Favorite[]
+  cartItems     CartItem[]
+
+  @@index([artistId])
+  @@index([category])
+  @@index([isAvailable])
+  @@map("artworks")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique
+  totalAmount     Float
+  status          OrderStatus @default(PENDING)
+  paymentIntentId String?
+  stripeSessionId String?
+  shippingAddress Json?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items           OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  price       Float
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  artworkId   String
+  artwork     Artwork  @relation(fields: [artworkId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([artworkId])
+  @@map("order_items")
+}
+
+model Favorite {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  artworkId   String
+  artwork     Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, artworkId])
+  @@index([userId])
+  @@index([artworkId])
+  @@map("favorites")
+}
+
+model CartItem {
+  id          String   @id @default(uuid())
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  artworkId   String
+  artwork     Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, artworkId])
+  @@index([userId])
+  @@map("cart_items")
+}
