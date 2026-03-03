@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes';
 import artworkRoutes from './routes/artworkRoutes';
+import artistRoutes from './routes/artistRoutes';
 import uploadRoutes from './routes/uploadRoutes';
 import { protect } from './middleware/authMiddleware';
 import { errorHandler, notFound } from './middleware/errorMiddleware';
@@ -54,6 +55,8 @@ app.get('/', (_req, res) => {
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/v1/artists', artistRoutes);
+app.use('/api/artists', artistRoutes);
 app.use('/api/v1/artworks', artworkRoutes);
 app.use('/api/artworks', artworkRoutes);
 app.use('/api/v1', uploadRoutes);

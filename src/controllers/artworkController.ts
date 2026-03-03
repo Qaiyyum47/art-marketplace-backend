@@ -23,11 +23,63 @@ export const createArtwork = asyncHandler(async (req: Request, res: Response) =>
   return res.status(201).json(artwork);
 });
 
-export const getArtworks = asyncHandler(async (_req: Request, res: Response) => {
-  const artworks = await prisma.artwork.findMany({
-    include: { artist: { select: { id: true, firstName: true, lastName: true, email: true } } },
+export const getArtworks = asyncHandler(async (req: Request, res: Response) => {
+  const { category, artist, search, sort = 'newest', limit = '12', offset = '0' } = req.query;
+
+  const limitNum = Math.min(Number(limit) || 12, 100);
+  const offsetNum = Number(offset) || 0;
+
+  // Build filter
+  const where: any = {};
+
+  if (category) {
+    where.category = { equals: category as string, mode: 'insensitive' };
+  }
+
+  if (artist) {
+    where.artist = { OR: [{ firstName: { contains: artist as string, mode: 'insensitive' } }, { lastName: { contains: artist as string, mode: 'insensitive' } }] };
+  }
+
+  if (search) {
+    where.OR = [
+      { title: { contains: search as string, mode: 'insensitive' } },
+      { description: { contains: search as string, mode: 'insensitive' } },
+      { category: { contains: search as string, mode: 'insensitive' } },
+    ];
+  }
+
+  // Determine sorting
+  let orderBy: any = { createdAt: 'desc' };
+  if (sort === 'price_asc') {
+    orderBy = { price: 'asc' };
+  } else if (sort === 'price_desc') {
+    orderBy = { price: 'desc' };
+  } else if (sort === 'popular') {
+    orderBy = { views: 'desc' };
+  } else if (sort === 'oldest') {
+    orderBy = { createdAt: 'asc' };
+  }
+
+  const [artworks, total] = await Promise.all([
+    prisma.artwork.findMany({
+      where,
+      include: { artist: { select: { id: true, firstName: true, lastName: true, email: true, country: true, genre: true } } },
+      orderBy,
+      take: limitNum,
+      skip: offsetNum,
+    }),
+    prisma.artwork.count({ where }),
+  ]);
+
+  return res.json({
+    data: artworks,
+    pagination: {
+      total,
+      limit: limitNum,
+      offset: offsetNum,
+      hasMore: offsetNum + limitNum < total,
+    },
   });
-  return res.json(artworks);
 });
 
 export const getArtworkById = asyncHandler(async (req: Request, res: Response) => {
