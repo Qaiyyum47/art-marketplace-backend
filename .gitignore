@@ -12,3 +12,7 @@ uploads/
 *.swp
 *.swo
 .prisma/
+/uploads
+/node_modules
+.env
+dist/

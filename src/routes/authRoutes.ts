@@ -1,9 +1,13 @@
 import { Router } from 'express';
-import { registerUser, loginUser } from '../controllers/authController';
+import { registerUser, loginUser, getUserProfile, updateUserProfile } from '../controllers/authController';
+import { protect } from '../middleware/authMiddleware';
+import { rateLimitAuth } from '../middleware/rateLimiter';
 
 const router = Router();
 
-router.post('/register', registerUser);
-router.post('/login', loginUser);
+router.post('/register', rateLimitAuth, registerUser);
+router.post('/login', rateLimitAuth, loginUser);
+router.get('/profile', protect, getUserProfile);
+router.put('/profile', protect, updateUserProfile);
 
 export default router;

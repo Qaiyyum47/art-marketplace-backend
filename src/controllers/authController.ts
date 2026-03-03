@@ -3,60 +3,132 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/database';
 import { env } from '../config/env';
+import { asyncHandler } from '../utils/asyncHandler';
+import { loginSchema, registerSchema, updateProfileSchema } from '../lib/validators/auth';
 
-export const registerUser = async (req: Request, res: Response) => {
-  const { email, password, firstName, lastName } = req.body;
-
-  try {
-    let user = await prisma.user.findUnique({ where: { email } });
-    if (user) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName,
-      },
-    });
-
-    const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-      expiresIn: '1h',
-    });
-
-    return res.status(201).json({ token, user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).send('Server Error');
+export const registerUser = asyncHandler(async (req: Request, res: Response) => {
+  const validation = registerSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res.status(400).json({ errors: validation.error.issues });
   }
-};
 
-export const loginUser = async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password, firstName, lastName, role } = validation.data;
 
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-      expiresIn: '1h',
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser) {
+    return res.status(400).json({ 
+      message: 'This email is already registered. Please log in or use a different email.' 
     });
-
-    return res.json({ token, user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).send('Server Error');
   }
-};
+
+  const salt = await bcrypt.genSalt(12);
+  const hashedPassword = await bcrypt.hash(password, salt);
+
+  const finalRole = role === 'ADMIN' ? 'BUYER' : (role || 'BUYER');
+
+  const user = await prisma.user.create({
+    data: {
+      email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      role: finalRole,
+    },
+  });
+
+  const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
+    expiresIn: '7d',
+  });
+
+  return res.status(201).json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    },
+  });
+});
+
+export const loginUser = asyncHandler(async (req: Request, res: Response) => {
+  const validation = loginSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res.status(400).json({ errors: validation.error.issues });
+  }
+
+  const { email, password } = validation.data;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    return res.status(401).json({ message: 'Invalid email or password' });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return res.status(401).json({ message: 'Invalid email or password' });
+  }
+
+  const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
+    expiresIn: '7d',
+  });
+
+  return res.json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    },
+  });
+});
+
+export const getUserProfile = asyncHandler(async (req: Request, res: Response) => {
+  const user = await prisma.user.findUnique({
+    where: { id: (req as any).userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      bio: true,
+      profileImage: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  return res.json(user);
+});
+
+export const updateUserProfile = asyncHandler(async (req: Request, res: Response) => {
+  const validation = updateProfileSchema.safeParse(req.body);
+  if (!validation.success) {
+    return res.status(400).json({ errors: validation.error.issues });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: (req as any).userId },
+    data: validation.data,
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      bio: true,
+      profileImage: true,
+      updatedAt: true,
+    },
+  });
+
+  return res.json(user);
+});
+
