@@ -37,7 +37,10 @@ export const registerUser = asyncHandler(async (req: Request, res: Response) => 
   });
 
   const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-    expiresIn: '7d',
+    algorithm: 'HS256',
+    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+    issuer: env.JWT_ISSUER,
+    audience: env.JWT_AUDIENCE,
   });
 
   return res.status(201).json({
@@ -71,7 +74,10 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
   }
 
   const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-    expiresIn: '7d',
+    algorithm: 'HS256',
+    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+    issuer: env.JWT_ISSUER,
+    audience: env.JWT_AUDIENCE,
   });
 
   return res.json({
@@ -88,7 +94,7 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
 
 export const getUserProfile = asyncHandler(async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({
-    where: { id: (req as any).userId },
+    where: { id: req.userId },
     select: {
       id: true,
       email: true,
@@ -108,6 +114,38 @@ export const getUserProfile = asyncHandler(async (req: Request, res: Response) =
   return res.json(user);
 });
 
+export const getFollowing = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Not authorized' });
+  }
+
+  const following = await prisma.userFollow.findMany({
+    where: {
+      followerId: userId,
+      following: {
+        role: 'ARTIST',
+      },
+    },
+    include: {
+      following: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          profileImage: true,
+          bio: true,
+          genre: true,
+          country: true,
+        },
+      },
+    },
+  });
+
+  const artists = following.map((f) => f.following);
+  return res.json(artists);
+});
 export const updateUserProfile = asyncHandler(async (req: Request, res: Response) => {
   const validation = updateProfileSchema.safeParse(req.body);
   if (!validation.success) {
@@ -115,7 +153,7 @@ export const updateUserProfile = asyncHandler(async (req: Request, res: Response
   }
 
   const user = await prisma.user.update({
-    where: { id: (req as any).userId },
+    where: { id: req.userId },
     data: validation.data,
     select: {
       id: true,

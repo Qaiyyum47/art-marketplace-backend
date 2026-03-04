@@ -8,17 +8,31 @@ const router = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max
+    files: 1, // Only 1 file per request
+    fields: 10, // Max 10 non-file fields
+    parts: 20, // Max 20 parts total
+  },
   fileFilter: (_req: Request, file: any, cb: any) => {
     const allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only JPEG, PNG, JPG, and WebP images are allowed'));
+    
+    // Validate MIME type
+    if (!allowedMimes.includes(file.mimetype)) {
+      return cb(new Error('Invalid file type. Only JPEG, PNG, JPG, and WebP images are allowed'), false);
     }
+    
+    // Validate original filename exists
+    if (!file.originalname || file.originalname.length > 255) {
+      return cb(new Error('Invalid filename'), false);
+    }
+    
+    cb(null, true);
   },
 });
 
+// All authenticated users can upload images (for profile pictures, artworks, etc.)
+// Rate limiting (20/15min) and file size limits (5MB) prevent abuse
 router.post('/upload', protect, rateLimitUpload, upload.single('image'), uploadImage);
 
 export default router;

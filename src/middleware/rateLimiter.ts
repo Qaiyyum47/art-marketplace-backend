@@ -1,13 +1,15 @@
 import { Request } from 'express';
 import rateLimit from 'express-rate-limit';
 
+const isDev = process.env.NODE_ENV === 'development';
+
 export const rateLimitGlobal = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: isDev ? 1000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req: Request) => {
-    return req.path === '/health';
+    return req.path === '/health' || isDev;
   },
   handler: (_req, res) => {
     res.status(429).json({

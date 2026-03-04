@@ -75,6 +75,9 @@ export const getArtistById = asyncHandler(async (req: Request, res: Response) =>
           isFeatured: true,
           views: true,
         },
+        orderBy: {
+          createdAt: 'desc',
+        },
       },
       _count: {
         select: {
@@ -111,16 +114,24 @@ export const getArtistById = asyncHandler(async (req: Request, res: Response) =>
 
 export const toggleFollowArtist = asyncHandler(async (req: Request, res: Response) => {
   const { id: artistId } = req.params as { id: string };
-  const userId = (req as any).userId;
+  const userId = req.userId;
 
   if (!userId) {
     return res.status(401).json({ message: 'Not authorized' });
+  }
+
+  if (userId === artistId) {
+    return res.status(400).json({ message: 'You cannot follow yourself' });
   }
 
   // Check if artist exists
   const artist = await prisma.user.findUnique({ where: { id: artistId } });
   if (!artist) {
     return res.status(404).json({ message: 'Artist not found' });
+  }
+
+  if (artist.role !== 'ARTIST') {
+    return res.status(400).json({ message: 'You can only follow artist accounts' });
   }
 
   // Check if already following

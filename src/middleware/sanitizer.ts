@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 
+const DANGEROUS_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+
 const sanitizeString = (value: any): any => {
   return typeof value === 'string' ? value.trim() : value;
 };
@@ -10,6 +12,11 @@ const sanitizeObjectInPlace = (obj: any): void => {
   }
 
   for (const key of Object.keys(obj)) {
+    if (DANGEROUS_KEYS.has(key)) {
+      delete obj[key];
+      continue;
+    }
+
     const value = obj[key];
     if (typeof value === 'string') {
       obj[key] = value.trim();

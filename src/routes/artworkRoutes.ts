@@ -10,13 +10,19 @@ import {
   deleteArtwork,
   toggleFavorite,
   getFavoriteArtworks,
+  getMyWorks,
+  getArtworkOptions,
 } from '../controllers/artworkController';
 
 const router = Router();
 
+router.get('/options', getArtworkOptions);
+
 router.route('/')
   .post(protect, authorize([UserRole.ARTIST]), createArtwork)
   .get(getArtworks);
+
+router.get('/my-works', protect, authorize([UserRole.ARTIST]), getMyWorks);
 
 router.get('/favorites', protect, getFavoriteArtworks);
 

@@ -72,9 +72,17 @@ model Artwork {
   imageUrl      String
   imagePublicId String?
   category      String
+  yearCreated   Int?
   dimensions    String?
   medium        String?
-  yearCreated   Int?
+  artworkType   String?
+  edition       String?
+  series        String?
+  condition     String?
+  signaturePresent Boolean?
+  certificationIncluded Boolean?
+  provenance    String?
+  materials     String?
   isAvailable   Boolean   @default(true)
   isFeatured    Boolean   @default(false)
   views         Int       @default(0)

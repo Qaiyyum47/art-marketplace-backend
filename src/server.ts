@@ -1,9 +1,15 @@
 import app from './app';
 import { connectDatabase } from './config/database';
 import { env } from './config/env';
+import { validateAndReportEnvironment } from './utils/envValidator';
 
 const startServer = async () => {
   try {
+    // Validate environment configuration before starting
+    if (!validateAndReportEnvironment()) {
+      process.exit(1);
+    }
+
     await connectDatabase();
 
     const server = app.listen(env.PORT, () => {
