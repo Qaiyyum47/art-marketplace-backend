@@ -3,6 +3,7 @@ import { costMonitor } from '../utils/costMonitor';
 import { queryMonitor } from '../utils/queryMonitor';
 import { asyncHandler } from '../utils/asyncHandler';
 import { findArtworksWithMissingImages } from '../services/cloudinaryCleanup';
+import { runCloudinaryCleanup } from '../services/scheduledCleanup';
 
 /**
  * Get cost and performance metrics (Admin only)
@@ -58,5 +59,37 @@ export const resetCostMetrics = asyncHandler(async (_req: Request, res: Response
 
   return res.json({
     message: 'Cost monitoring metrics reset successfully',
+  });
+});
+
+/**
+ * Run Cloudinary cleanup to find orphaned images (Admin only)
+ * Use dryRun=true to preview what would be deleted
+ * Use dryRun=false to actually delete orphaned images
+ * 
+ * WARNING: This is an expensive operation (API calls to Cloudinary)
+ * Orphaned images cost storage fees, so regular cleanup saves money
+ */
+export const runCloudinaryCleanupEndpoint = asyncHandler(async (req: Request, res: Response) => {
+  const dryRun = req.query.dryRun !== 'false'; // Default to dry run for safety
+
+  const report = await runCloudinaryCleanup(dryRun);
+
+  return res.json({
+    mode: dryRun ? 'DRY_RUN' : 'LIVE',
+    message: dryRun 
+      ? 'Preview completed. Set ?dryRun=false to actually delete orphaned images.'
+      : 'Cleanup completed successfully.',
+    report: {
+      totalCloudinaryImages: report.totalCloudinaryImages,
+      totalDatabaseImages: report.totalDatabaseImages,
+      orphanedImagesCount: report.orphanedImages.length,
+      orphanedImages: report.orphanedImages.slice(0, 20), // Show first 20 only
+      deletedCount: report.deletedCount,
+      errors: report.errors,
+      estimatedSavings: report.orphanedImages.length > 0
+        ? `Approximately ${(report.orphanedImages.length * 0.5).toFixed(2)}MB of storage`
+        : 'No savings',
+    },
   });
 });

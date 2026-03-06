@@ -45,6 +45,9 @@ model User {
   followedBy    UserFollow[] @relation("follower")
   following     UserFollow[] @relation("following")
 
+  @@index([role]) // For filtering by user role (ARTIST queries)
+  @@index([email]) // Email is unique but index helps with lookups
+  @@index([createdAt]) // For user registration queries
   @@map("users")
 }
 
@@ -97,8 +100,16 @@ model Artwork {
   cartItems     CartItem[]
 
   @@index([artistId])
+  @@index([artistId, createdAt])
   @@index([category])
+  @@index([isAvailable, createdAt])
+  @@index([imagePublicId])
   @@index([isAvailable])
+  @@index([price]) // For sorting by price
+  @@index([views]) // For sorting by popularity
+  @@index([isFeatured]) // For featured artwork queries
+  @@index([category, isAvailable]) // Composite for category filtering
+  @@index([createdAt]) // For date range queries
   @@map("artworks")
 }
 

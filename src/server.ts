@@ -13,19 +13,19 @@ const startServer = async () => {
     await connectDatabase();
 
     const server = app.listen(env.PORT, () => {
-      console.log(`Server is running on port ${env.PORT}`);
-      console.log(`Environment: ${env.NODE_ENV}`);
+      process.stdout.write(`Server is running on port ${env.PORT}\n`);
+      process.stdout.write(`Environment: ${env.NODE_ENV}\n`);
     });
 
     process.on('SIGTERM', () => {
-      console.log('SIGTERM signal received: closing HTTP server');
+      process.stdout.write('SIGTERM signal received: closing HTTP server\n');
       server.close(() => {
-        console.log('HTTP server closed');
+        process.stdout.write('HTTP server closed\n');
         process.exit(0);
       });
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    process.stderr.write(`Failed to start server: ${error}\n`);
     process.exit(1);
   }
 };

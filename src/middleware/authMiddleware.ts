@@ -2,14 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 
-declare global {
-  namespace Express {
-    interface Request {
-      userId?: string;
-    }
-  }
-}
-
 export const protect = (req: Request, res: Response, next: NextFunction) => {
   try {
     let token: string | undefined;

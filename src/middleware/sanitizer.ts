@@ -2,11 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 
 const DANGEROUS_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 
-const sanitizeString = (value: any): any => {
+const sanitizeString = (value: unknown): unknown => {
   return typeof value === 'string' ? value.trim() : value;
 };
 
-const sanitizeObjectInPlace = (obj: any): void => {
+const sanitizeObjectInPlace = (obj: Record<string, unknown>): void => {
   if (typeof obj !== 'object' || obj === null) {
     return;
   }
@@ -21,7 +21,7 @@ const sanitizeObjectInPlace = (obj: any): void => {
     if (typeof value === 'string') {
       obj[key] = value.trim();
     } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      sanitizeObjectInPlace(value);
+      sanitizeObjectInPlace(value as Record<string, unknown>);
     } else if (Array.isArray(value)) {
       obj[key] = value.map(sanitizeString);
     }

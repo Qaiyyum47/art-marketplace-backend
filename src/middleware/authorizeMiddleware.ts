@@ -25,7 +25,6 @@ export const authorize = (roles: UserRole[]) => {
 
       return next();
     } catch (error) {
-      console.error('[AuthorizeMiddleware] Error:', error);
       return res.status(500).json({ message: 'Authorization check failed' });
     }
   };

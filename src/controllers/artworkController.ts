@@ -1,8 +1,11 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { Prisma } from '@prisma/client';
 import { createArtworkSchema, updateArtworkSchema } from '../lib/validators/artwork';
 import { asyncHandler } from '../utils/asyncHandler';
 import { deleteFromCloudinary } from '../services/cloudinaryService';
+import { parsePaginationParams, parseSortParam } from '../utils/paginationHelper';
+import { validateUUID } from '../utils/uuidValidator';
 import {
   ARTWORK_TYPE_SUGGESTIONS,
   MEDIUM_SUGGESTIONS,
@@ -33,13 +36,15 @@ export const createArtwork = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const getArtworks = asyncHandler(async (req: Request, res: Response) => {
-  const { category, artist, search, sort = 'newest', limit = '12', offset = '0' } = req.query;
+  const { category, artist, search, sort = 'newest', limit, offset } = req.query;
 
-  const limitNum = Math.min(Number(limit) || 12, 100);
-  const offsetNum = Number(offset) || 0;
+  const { limit: limitNum, offset: offsetNum } = parsePaginationParams(
+    limit as string | undefined,
+    offset as string | undefined
+  );
 
   // Build filter
-  const where: any = {};
+  const where: Prisma.ArtworkWhereInput = {};
 
   if (category) {
     where.category = { equals: category as string, mode: 'insensitive' };
@@ -57,17 +62,7 @@ export const getArtworks = asyncHandler(async (req: Request, res: Response) => {
     ];
   }
 
-  // Determine sorting
-  let orderBy: any = { createdAt: 'desc' };
-  if (sort === 'price_asc') {
-    orderBy = { price: 'asc' };
-  } else if (sort === 'price_desc') {
-    orderBy = { price: 'desc' };
-  } else if (sort === 'popular') {
-    orderBy = { views: 'desc' };
-  } else if (sort === 'oldest') {
-    orderBy = { createdAt: 'asc' };
-  }
+  const orderBy = parseSortParam(sort as string);
 
   const [artworks, total] = await Promise.all([
     prisma.artwork.findMany({
@@ -93,13 +88,17 @@ export const getArtworks = asyncHandler(async (req: Request, res: Response) => {
 
 export const getArtworkById = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
+  validateUUID(id, 'Artwork ID');
+  
   const artwork = await prisma.artwork.findUnique({
     where: { id },
     include: { artist: { select: { id: true, firstName: true, lastName: true, profileImage: true, bio: true, country: true, genre: true } } },
   });
-  if (!artwork) {
-    return res.status(404).json({ message: 'Artwork not found' });
+
+  if (!artwork?.artist) {
+    return res.status(404).json({ message: 'Artwork or artist not found' });
   }
+
   return res.json(artwork);
 });
 
@@ -109,20 +108,13 @@ export const getMyWorks = asyncHandler(async (req: Request, res: Response) => {
     return res.status(401).json({ message: 'Not authorized' });
   }
 
-  const { sort = 'newest', limit = '12', offset = '0' } = req.query;
-  const limitNum = Math.min(Number(limit) || 12, 100);
-  const offsetNum = Number(offset) || 0;
+  const { sort = 'newest', limit, offset } = req.query;
+  const { limit: limitNum, offset: offsetNum } = parsePaginationParams(
+    limit as string | undefined,
+    offset as string | undefined
+  );
 
-  let orderBy: any = { createdAt: 'desc' };
-  if (sort === 'price_asc') {
-    orderBy = { price: 'asc' };
-  } else if (sort === 'price_desc') {
-    orderBy = { price: 'desc' };
-  } else if (sort === 'popular') {
-    orderBy = { views: 'desc' };
-  } else if (sort === 'oldest') {
-    orderBy = { createdAt: 'asc' };
-  }
+  const orderBy = parseSortParam(sort as string);
 
   const [artworks, total] = await Promise.all([
     prisma.artwork.findMany({
@@ -148,6 +140,7 @@ export const getMyWorks = asyncHandler(async (req: Request, res: Response) => {
 
 export const updateArtwork = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params as { id: string };
+  validateUUID(id, 'Artwork ID');
   const artistId = req.userId;
 
   if (!artistId) {
@@ -187,12 +180,15 @@ export const updateArtwork = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const deleteArtwork = asyncHandler(async (req: Request, res: Response) => {
-  const { id } = req.params as { id: string };
   const artistId = req.userId;
+  const { id } = req.params as { id: string };
 
+  // Check authorization BEFORE validating UUID
   if (!artistId) {
     return res.status(401).json({ message: 'Not authorized' });
   }
+
+  validateUUID(id, 'Artwork ID');
 
   const artwork = await prisma.artwork.findUnique({ where: { id } });
 
@@ -204,48 +200,60 @@ export const deleteArtwork = asyncHandler(async (req: Request, res: Response) =>
     return res.status(403).json({ message: 'Not authorized to delete this artwork' });
   }
 
-  // Delete image from Cloudinary if it exists
+  // Delete from database first, then clean up Cloudinary
+  // This ensures artwork is removed even if Cloudinary deletion fails
+  await prisma.artwork.delete({ where: { id } });
+
+  // Clean up Cloudinary image if it exists
   if (artwork.imagePublicId) {
-    await deleteFromCloudinary(artwork.imagePublicId);
+    try {
+      await deleteFromCloudinary(artwork.imagePublicId);
+    } catch (error) {
+      // Log error but don't fail the response - artwork is already deleted from DB
+      process.stderr.write(
+        `Warning: Failed to delete Cloudinary image ${artwork.imagePublicId}: ${error instanceof Error ? error.message : 'unknown error'}\n`
+      );
+    }
   }
 
-  await prisma.artwork.delete({ where: { id } });
   return res.json({ message: 'Artwork removed' });
 });
 
 export const toggleFavorite = asyncHandler(async (req: Request, res: Response) => {
-  const { id: artworkId } = req.params as { id: string };
   const userId = req.userId;
+  const { id: artworkId } = req.params as { id: string };
 
+  // Check authorization BEFORE validating UUID
   if (!userId) {
     return res.status(401).json({ message: 'Not authorized' });
   }
 
-  const favorite = await prisma.favorite.findUnique({
-    where: {
-      userId_artworkId: {
+  validateUUID(artworkId, 'Artwork ID');
+
+  // Use transaction to prevent race condition
+  // Atomically delete if exists, then create if it didn't
+  const result = await prisma.$transaction(async (tx) => {
+    const deleted = await tx.favorite.deleteMany({
+      where: {
         userId,
         artworkId,
       },
-    },
+    });
+
+    if (deleted.count > 0) {
+      return { isFavorite: false, message: 'Artwork removed from favorites' };
+    } else {
+      await tx.favorite.create({
+        data: {
+          userId,
+          artworkId,
+        },
+      });
+      return { isFavorite: true, message: 'Artwork added to favorites' };
+    }
   });
 
-  if (favorite) {
-    await prisma.favorite.delete({
-      where: {
-        id: favorite.id,
-      },
-    });
-    return res.json({ message: 'Artwork removed from favorites', isFavorite: false });
-  } else {
-    await prisma.favorite.create({
-      data: {
-        userId,
-        artworkId,
-      },
-    });
-    return res.json({ message: 'Artwork added to favorites', isFavorite: true });
-  }
+  return res.json(result);
 });
 
 export const getFavoriteArtworks = asyncHandler(async (req: Request, res: Response) => {

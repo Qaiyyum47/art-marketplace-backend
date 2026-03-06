@@ -1,5 +1,4 @@
 import express from 'express';
-import path from 'path';
 import helmet from 'helmet';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes';
@@ -47,7 +46,8 @@ app.use(responseSizeTracker);
 
 app.use(rateLimitGlobal);
 
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Note: Static uploads folder removed - all images are stored in Cloudinary
+// This saves server disk space and reduces hosting costs
 
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok', message: 'Server is running' });

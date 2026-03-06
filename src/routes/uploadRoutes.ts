@@ -22,9 +22,21 @@ const upload = multer({
       return cb(new Error('Invalid file type. Only JPEG, PNG, JPG, and WebP images are allowed'), false);
     }
     
-    // Validate original filename exists
+    // Block dangerous file extensions
+    const originalname = file.originalname.toLowerCase();
+    const dangerousExtensions = ['.svg', '.html', '.htm', '.js', '.exe', '.bat', '.sh', '.php', '.asp'];
+    if (dangerousExtensions.some(ext => originalname.endsWith(ext))) {
+      return cb(new Error('File extension not allowed'), false);
+    }
+    
+    // Validate filename
     if (!file.originalname || file.originalname.length > 255) {
       return cb(new Error('Invalid filename'), false);
+    }
+    
+    // Block path traversal attempts in filename
+    if (file.originalname.includes('..') || file.originalname.includes('/') || file.originalname.includes('\\')) {
+      return cb(new Error('Invalid filename characters'), false);
     }
     
     cb(null, true);

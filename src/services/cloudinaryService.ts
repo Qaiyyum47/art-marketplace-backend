@@ -25,8 +25,11 @@ export const uploadToCloudinary = async (
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: 'art-marketplace/artworks',
-        resource_type: 'auto',
+        resource_type: 'image', // Explicitly set to image only
         public_id: `${Date.now()}-${safeName}`,
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+        format: 'jpg', // Convert all uploads to JPEG for consistency
+        quality: 'auto:good',
       },
       (error, result) => {
         if (error) {
@@ -47,10 +50,27 @@ export const uploadToCloudinary = async (
 };
 
 export const deleteFromCloudinary = async (publicId: string): Promise<void> => {
+  // Validate publicId to prevent injection attacks
+  if (!publicId || typeof publicId !== 'string') {
+    throw new Error('Invalid publicId: must be a non-empty string');
+  }
+  
+  // Ensure publicId is from our folder (prevent deletion of other resources)
+  if (!publicId.startsWith('art-marketplace/')) {
+    throw new Error(`Invalid publicId: not from art-marketplace folder. Got: ${publicId}`);
+  }
+  
+  // Sanitize publicId - remove any dangerous characters
+  const sanitizedPublicId = publicId.replace(/[^a-zA-Z0-9/_-]/g, '');
+  
   try {
-    await cloudinary.uploader.destroy(publicId);
+    await cloudinary.uploader.destroy(sanitizedPublicId, {
+      resource_type: 'image',
+      invalidate: true, // Invalidate CDN cache
+    });
   } catch (error) {
-    // Silently fail - image may already be deleted
-    // In production, log to proper logging service (not console)
+    // Re-throw with context so callers can decide how to handle
+    const errorMsg = error instanceof Error ? error.message : 'Unknown Cloudinary error';
+    throw new Error(`Failed to delete Cloudinary image: ${errorMsg}`);
   }
 };

@@ -1,10 +1,27 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { UserRole } from '@prisma/client';
 import prisma from '../config/database';
 import { env } from '../config/env';
 import { asyncHandler } from '../utils/asyncHandler';
 import { loginSchema, registerSchema, updateProfileSchema } from '../lib/validators/auth';
+
+// Security constant for bcrypt salt rounds
+const BCRYPT_SALT_ROUNDS = 12;
+
+/**
+ * Generate JWT token for authenticated user
+ * Extracted to avoid duplication between register and login
+ */
+function createAuthToken(userId: string): string {
+  return jwt.sign({ userId }, env.JWT_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+    issuer: env.JWT_ISSUER,
+    audience: env.JWT_AUDIENCE,
+  });
+}
 
 export const registerUser = asyncHandler(async (req: Request, res: Response) => {
   const validation = registerSchema.safeParse(req.body);
@@ -21,10 +38,10 @@ export const registerUser = asyncHandler(async (req: Request, res: Response) => 
     });
   }
 
-  const salt = await bcrypt.genSalt(12);
+  const salt = await bcrypt.genSalt(BCRYPT_SALT_ROUNDS);
   const hashedPassword = await bcrypt.hash(password, salt);
 
-  const finalRole = role === 'ADMIN' ? 'BUYER' : (role || 'BUYER');
+  const finalRole = role === UserRole.ADMIN ? UserRole.BUYER : (role || UserRole.BUYER);
 
   const user = await prisma.user.create({
     data: {
@@ -36,12 +53,7 @@ export const registerUser = asyncHandler(async (req: Request, res: Response) => 
     },
   });
 
-  const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-    algorithm: 'HS256',
-    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
-    issuer: env.JWT_ISSUER,
-    audience: env.JWT_AUDIENCE,
-  });
+  const token = createAuthToken(user.id);
 
   return res.status(201).json({
     token,
@@ -73,12 +85,7 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
     return res.status(401).json({ message: 'Invalid email or password' });
   }
 
-  const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-    algorithm: 'HS256',
-    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
-    issuer: env.JWT_ISSUER,
-    audience: env.JWT_AUDIENCE,
-  });
+  const token = createAuthToken(user.id);
 
   return res.json({
     token,
@@ -125,7 +132,7 @@ export const getFollowing = asyncHandler(async (req: Request, res: Response) => 
     where: {
       followerId: userId,
       following: {
-        role: 'ARTIST',
+        role: UserRole.ARTIST,
       },
     },
     include: {

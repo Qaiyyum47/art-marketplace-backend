@@ -30,7 +30,7 @@ class QueryMonitor {
 
     // Warn about slow queries in development
     if (process.env.NODE_ENV === 'development' && duration > this.WARN_THRESHOLD_MS) {
-      console.warn(`🐌 Slow query: ${model}.${action} took ${duration}ms`);
+      process.stderr.write(`🐌 Slow query: ${model}.${action} took ${duration}ms\n`);
     }
   }
 

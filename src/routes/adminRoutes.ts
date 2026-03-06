@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { UserRole } from '@prisma/client';
-import { getCostMetrics, getDataIntegrityIssues, resetCostMetrics } from '../controllers/adminController';
+import { getCostMetrics, getDataIntegrityIssues, resetCostMetrics, runCloudinaryCleanupEndpoint } from '../controllers/adminController';
 import { protect } from '../middleware/authMiddleware';
 import { authorize } from '../middleware/authorizeMiddleware';
 
@@ -14,5 +14,9 @@ router.use(authorize([UserRole.ADMIN]));
 router.get('/metrics/cost', getCostMetrics);
 router.get('/metrics/integrity', getDataIntegrityIssues);
 router.post('/metrics/reset', resetCostMetrics);
+
+// Cloudinary cleanup endpoint - saves storage costs by removing orphaned images
+// GET with ?dryRun=true (default) to preview, ?dryRun=false to actually delete
+router.get('/cleanup/cloudinary', runCloudinaryCleanupEndpoint);
 
 export default router;

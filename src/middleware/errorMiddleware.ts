@@ -41,10 +41,17 @@ export const errorHandler = (err: AppError, req: Request, res: Response, _next: 
 
   const isDevelopment = env.NODE_ENV === 'development';
 
+  // Only log errors in development or log severe errors in production to stdout/stderr
+  // In production, you should use a proper logging service (e.g., Winston, Pino)
   if (isDevelopment) {
-    console.error(`[ERROR] ${req.method} ${req.path}`, err);
-  } else {
-    console.error(`[ERROR] ${statusCode}: ${message}`);
+    // Development: Log full error details to console
+    process.stderr.write(`[ERROR] ${req.method} ${req.path} - ${statusCode}: ${message}\n`);
+    if (err.stack) {
+      process.stderr.write(`${err.stack}\n`);
+    }
+  } else if (statusCode >= 500) {
+    // Production: Only log server errors (5xx) to stderr
+    process.stderr.write(`[ERROR] ${statusCode}: ${message}\n`);
   }
 
   return res.status(statusCode).json({

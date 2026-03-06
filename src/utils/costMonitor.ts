@@ -1,3 +1,5 @@
+import { Request, Response, NextFunction } from 'express';
+
 /**
  * Cost monitoring utilities to track and prevent excessive resource usage
  */
@@ -65,10 +67,10 @@ export const costMonitor = new CostMonitor();
 /**
  * Middleware to track response sizes
  */
-export const responseSizeTracker = (req: any, res: any, next: any) => {
+export const responseSizeTracker = (req: Request, res: Response, next: NextFunction) => {
   const originalJson = res.json;
   
-  res.json = function (data: any) {
+  res.json = function (data: unknown) {
     const jsonString = JSON.stringify(data);
     const sizeBytes = Buffer.byteLength(jsonString, 'utf8');
     
@@ -76,7 +78,7 @@ export const responseSizeTracker = (req: any, res: any, next: any) => {
     
     // Warn about large responses in development
     if (process.env.NODE_ENV === 'development' && sizeBytes > 100 * 1024) {
-      console.warn(`⚠️  Large response: ${(sizeBytes / 1024).toFixed(1)}KB for ${req.method} ${req.path}`);
+      process.stderr.write(`⚠️  Large response: ${(sizeBytes / 1024).toFixed(1)}KB for ${req.method} ${req.path}\n`);
     }
     
     return originalJson.call(this, data);

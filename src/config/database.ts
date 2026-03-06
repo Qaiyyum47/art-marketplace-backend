@@ -23,9 +23,9 @@ prisma.$use(async (params, next) => {
   costMonitor.trackDbQuery(duration);
   queryMonitor.log(params.model || 'unknown', params.action, duration);
   
-  // Log slow queries (over 3 seconds)
-  if (duration > 3000) {
-    console.warn(`Slow query detected: ${params.model}.${params.action} took ${duration}ms`);
+  // Log slow queries (over 3 seconds) to stderr
+  if (duration > 3000 && process.env.NODE_ENV === 'development') {
+    process.stderr.write(`[SLOW QUERY] ${params.model}.${params.action} took ${duration}ms\n`);
   }
   
   return result;
@@ -34,16 +34,16 @@ prisma.$use(async (params, next) => {
 export const connectDatabase = async () => {
   try {
     await prisma.$connect();
-    console.log('✅ Database connected successfully');
+    process.stdout.write('✅ Database connected successfully\n');
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
+    process.stderr.write(`❌ Database connection failed: ${error}\n`);
     process.exit(1);
   }
 };
 
 export const disconnectDatabase = async () => {
   await prisma.$disconnect();
-  console.log('Database disconnected');
+  process.stdout.write('Database disconnected\n');
 };
 
 export default prisma;
